@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Register - NWU CEAT Smart Mirror</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #800020 0%, #5a0015 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .register-box {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            width: 350px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        h1 { color: #800020; text-align: center; margin-bottom: 20px; }
+        h1 span { color: #c5a059; }
+        input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #800020;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        button:hover { background: #5a0015; }
+        .error {
+            color: red;
+            margin-top: 10px;
+            text-align: center;
+            display: none;
+        }
+        .success {
+            color: green;
+            margin-top: 10px;
+            text-align: center;
+            display: none;
+        }
+        .login-link {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+        }
+        .login-link a { color: #800020; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="register-box">
+        <h1>Create <span>Account</span></h1>
+        <form id="registerForm">
+            <input type="text" id="username" placeholder="Username" required>
+            <input type="password" id="password" placeholder="Password (min 6 chars)" required>
+            <input type="password" id="confirmPassword" placeholder="Confirm Password" required>
+            <button type="submit">Register</button>
+            <div id="error" class="error"></div>
+            <div id="success" class="success"></div>
+        </form>
+        <div class="login-link">
+            <a href="login.html">Already have an account? Login</a>
+        </div>
+    </div>
+    <script>
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            
+            if (password !== confirmPassword) {
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = 'Passwords do not match';
+                return;
+            }
+            
+            if (password.length < 6) {
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = 'Password must be at least 6 characters';
+                return;
+            }
+            
+            try {
+                const res = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, confirmPassword })
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    document.getElementById('success').style.display = 'block';
+                    document.getElementById('success').textContent = 'Registration successful! Redirecting...';
+                    setTimeout(() => window.location.href = 'login.html', 2000);
+                } else {
+                    document.getElementById('error').style.display = 'block';
+                    document.getElementById('error').textContent = data.error;
+                }
+            } catch(err) {
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = 'Connection error';
+            }
+        });
+    </script>
+</body>
+</html>
