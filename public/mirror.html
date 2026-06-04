@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Mirror Feed</title>
+  <style>
+    body{
+      font-family: Arial, sans-serif;
+      background:#0b0b0b;
+      color:#fff;
+      margin:0;
+      padding:16px;
+    }
+    h2{margin:0 0 8px 0; font-size:18px;}
+    .grid{display:flex; flex-direction:column; gap:12px;}
+    .card{background:#121212; border:1px solid #222; border-radius:12px; padding:14px;}
+    .itemTitle{font-weight:700; margin-bottom:6px;}
+    .meta{color:#bbb; font-size:12px; margin-top:6px;}
+    .content{white-space:pre-wrap; line-height:1.35;}
+    .empty{color:#888; padding:12px 0;}
+  </style>
+</head>
+<body>
+  <div class="grid">
+    <div class="card">
+      <h2>📢 Announcements</h2>
+      <div id="announcements"></div>
+    </div>
+    <div class="card">
+      <h2>📅 Events</h2>
+      <div id="events"></div>
+    </div>
+  </div>
+
+  <script>
+    const baseUrl = '';
+    const apiUrl = '/api/announcements-public';
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text ?? '';
+      return div.innerHTML;
+    }
+
+    function renderList(el, items, kind) {
+      if (!items || items.length === 0) {
+        el.innerHTML = '<div class="empty">No items yet.</div>';
+        return;
+      }
+
+      const html = items.slice(0, 10).map((it) => {
+        if (kind === 'announcement') {
+          const badge = it.priority === 'urgent' ? '🚨' : (it.priority === 'high' ? '⚠️' : '');
+          return `
+            <div style="margin-bottom:12px; padding-bottom:12px; border-bottom:1px solid #1f1f1f;">
+              <div class="itemTitle">${escapeHtml(badge + ' ' + it.title)}</div>
+              <div class="content">${escapeHtml(it.content)}</div>
+              <div class="meta">${escapeHtml(new Date(it.date).toLocaleString())} | By: ${escapeHtml(it.createdBy)}</div>
+            </div>
+          `;
+        }
+
+        // events
+        return `
+          <div style="margin-bottom:12px; padding-bottom:12px; border-bottom:1px solid #1f1f1f;">
+            <div class="itemTitle">${escapeHtml(it.title)}</div>
+            <div class="content">${escapeHtml(it.description || '')}</div>
+            <div class="meta">${escapeHtml(new Date(it.date).toLocaleString())} | By: ${escapeHtml(it.createdBy)}</div>
+          </div>
+        `;
+      }).join('');
+
+      el.innerHTML = html;
+    }
+
+    async function loadFeed() {
+      try {
+        const res = await fetch(apiUrl, { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        renderList(document.getElementById('announcements'), data.announcements || [], 'announcement');
+        renderList(document.getElementById('events'), data.events || [], 'event');
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    // Poll every 7 seconds (works everywhere, simplest for MM3 iframe)
+    loadFeed();
+    setInterval(loadFeed, 7000);
+  </script>
+</body>
+</html>
+

@@ -9,10 +9,14 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(express.json());
+// Needed so OPTIONS requests succeed (some browsers/proxies)
+app.options('*', cors());
 app.use(express.static('public'));
 
+
 // Secret key
-const JWT_SECRET = 'smart-mirror-secret-key-2024';
+const JWT_SECRET = process.env.JWT_SECRET || 'smart-mirror-secret-key-2024';
+
 
 // Data storage
 let announcements = [];
@@ -69,6 +73,9 @@ function authenticateToken(req, res, next) {
 
 // Register
 app.post('/api/register', (req, res) => {
+  // Only allow JSON body
+  // (keeps behavior consistent when deployed)
+
   const { username, password, confirmPassword } = req.body;
   
   if (!username || !password) {
@@ -171,19 +178,50 @@ app.post('/api/change-password', authenticateToken, (req, res) => {
   res.json({ success: true, message: 'Password changed successfully!' });
 });
 
-// Get all data
+// Get all data (PUBLIC for mirror)
+app.get('/api/announcements-public', (req, res) => {
+  res.json({ announcements: announcements, events: events });
+});
+
+// (Keep secured endpoint for admin UI if you need it)
 app.get('/api/announcements', authenticateToken, (req, res) => {
   res.json({ announcements: announcements, events: events });
+});
+
+
+// --- SSE setup (simple polling fallback uses public page anyway) ---
+let sseClients = [];
+
+function broadcastSSEUpdate() {
+  const payload = `event: update\ndata: updated\n\n`;
+  sseClients.forEach(res => {
+    try { res.write(payload); } catch (e) {}
+  });
+}
+
+// SSE stream (PUBLIC)
+app.get('/api/stream', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  // initial ping
+  res.write('event: ping\ndata: ok\n\n');
+
+  sseClients.push(res);
+
+  req.on('close', () => {
+    sseClients = sseClients.filter(c => c !== res);
+  });
 });
 
 // Create announcement
 app.post('/api/announcements', authenticateToken, (req, res) => {
   const { title, content, priority = 'normal' } = req.body;
-  
   if (!title || !content) {
     return res.status(400).json({ error: 'Title and content are required' });
   }
-  
   const newAnnouncement = {
     id: Date.now(),
     title: title,
@@ -193,10 +231,12 @@ app.post('/api/announcements', authenticateToken, (req, res) => {
     createdBy: req.user.username,
     createdAt: new Date().toISOString()
   };
-  
   announcements.unshift(newAnnouncement);
+  broadcastSSEUpdate();
   res.json({ success: true, announcement: newAnnouncement });
 });
+
+
 
 // Update announcement
 app.put('/api/announcements/:id', authenticateToken, (req, res) => {
@@ -232,7 +272,6 @@ app.delete('/api/announcements/:id', authenticateToken, (req, res) => {
 // Create event
 app.post('/api/events', authenticateToken, (req, res) => {
   const { title, date, description } = req.body;
-  
   if (!title || !date) {
     return res.status(400).json({ error: 'Title and date are required' });
   }
@@ -247,8 +286,10 @@ app.post('/api/events', authenticateToken, (req, res) => {
   };
   
   events.push(newEvent);
+  broadcastSSEUpdate();
   res.json({ success: true, event: newEvent });
 });
+
 
 // Delete event
 app.delete('/api/events/:id', authenticateToken, (req, res) => {
